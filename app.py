@@ -26,7 +26,7 @@ def carregar_dados():
         # --- MAPEAMENTO DE COLUNAS ---
         # AJUSTE AQUI: Substitua os nomes à direita pelos nomes exatos do seu arquivo CSV.
         mapa_colunas = {
-            "inicio_contrato": "Data_Inicio", # Ex: "Data Início" ou "Início"
+            "inicio_contrato": "Data_Início", # Ex: "Data Início" ou "Início"
             "fim_contrato": "Data_Fim",       # Ex: "Data Final" ou "Fim"
             "cliente": "Cliente",
             "agencia": "Agência",
@@ -203,3 +203,4 @@ st.dataframe(
     hide_index=True,
     use_container_width=True
 )
+
