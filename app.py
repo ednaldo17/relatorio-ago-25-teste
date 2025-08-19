@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 from datetime import datetime
-import locale # Importado para formatar o nome do mês
 
 # --- Configuração da Página ---
 st.set_page_config(
@@ -11,6 +10,15 @@ st.set_page_config(
     page_icon="📻",
     layout="wide",
 )
+
+# --- Função para obter o nome do mês em português ---
+def obter_nome_mes_pt(data):
+    """Retorna o nome do mês de uma data em português."""
+    meses_pt = [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
+    return meses_pt[data.month - 1]
 
 # --- Carregamento e Preparação dos Dados ---
 @st.cache_data
@@ -20,7 +28,7 @@ def carregar_dados():
         df = pd.read_csv("relatorio MAI.csv")
 
         # --- AJUDA PARA DEBUG ---
-        st.info("Nomes das colunas encontradas no arquivo CSV (copie e cole os nomes corretos abaixo):")
+        st.info("Nomes das colunas encontradas no arquivo CSV (use para corrigir o mapa abaixo):")
         st.write(df.columns.tolist())
 
         # --- MAPEAMENTO DE COLUNAS ---
@@ -34,43 +42,41 @@ def carregar_dados():
             "codigo": "Código"
         }
 
-        # Renomeia as colunas do DataFrame para um padrão que o script espera
-        df = df.rename(columns={
-            mapa_colunas["inicio_contrato"]: "Data_Inicio_Padrao",
-            mapa_colunas["fim_contrato"]: "Data_Fim_Padrao",
-            mapa_colunas["cliente"]: "Cliente_Padrao",
-            mapa_colunas["agencia"]: "Agencia_Padrao",
-            mapa_colunas["insercoes"]: "Insercoes_Padrao",
-            mapa_colunas["codigo"]: "Codigo_Padrao"
-        })
+        # --- VALIDAÇÃO DO MAPEAMENTO ---
+        colunas_necessarias = list(mapa_colunas.values())
+        colunas_faltando = [col for col in colunas_necessarias if col not in df.columns]
 
-        # Converte colunas de data
-        df['Data_Inicio_Padrao'] = pd.to_datetime(df['Data_Inicio_Padrao'], errors='coerce')
-        df['Data_Fim_Padrao'] = pd.to_datetime(df['Data_Fim_Padrao'], errors='coerce')
+        if colunas_faltando:
+            st.error(
+                f"Erro de Mapeamento: As seguintes colunas não foram encontradas no arquivo CSV: **{', '.join(colunas_faltando)}**. "
+                f"Por favor, corrija os nomes na seção 'MAPEAMENTO DE COLUNAS' para que correspondam exatamente aos nomes listados acima."
+            )
+            return None
+
+        mapa_rename_inverso = {v: k for k, v in mapa_colunas.items()}
+        df = df.rename(columns=mapa_rename_inverso)
+
+        df['inicio_contrato'] = pd.to_datetime(df['inicio_contrato'], errors='coerce')
+        df['fim_contrato'] = pd.to_datetime(df['fim_contrato'], errors='coerce')
 
         # --- LÓGICA PARA AS NOVAS COLUNAS ---
         data_atual = datetime.now()
         mes_atual = data_atual.month
         ano_atual = data_atual.year
 
-        condicao_entrou = (df['Data_Inicio_Padrao'].dt.month == mes_atual) & (df['Data_Inicio_Padrao'].dt.year == ano_atual)
+        condicao_entrou = (df['inicio_contrato'].dt.month == mes_atual) & (df['inicio_contrato'].dt.year == ano_atual)
         df['Entrou?'] = np.where(condicao_entrou, 'Sim', 'Não')
 
-        condicao_saiu = (df['Data_Fim_Padrao'].dt.month == mes_atual) & (df['Data_Fim_Padrao'].dt.year == ano_atual)
+        condicao_saiu = (df['fim_contrato'].dt.month == mes_atual) & (df['fim_contrato'].dt.year == ano_atual)
         df['Saiu?'] = np.where(condicao_saiu, 'Sim', 'Não')
 
-        df['Data de Entrada'] = np.where(df['Entrou?'] == 'Sim', df['Data_Inicio_Padrao'], pd.NaT)
-        df['Data de Saída'] = np.where(df['Saiu?'] == 'Sim', df['Data_Fim_Padrao'], pd.NaT)
+        df['Data de Entrada'] = np.where(df['Entrou?'] == 'Sim', df['inicio_contrato'], pd.NaT)
+        df['Data de Saída'] = np.where(df['Saiu?'] == 'Sim', df['fim_contrato'], pd.NaT)
 
         return df
     except FileNotFoundError:
         st.error("Erro: O arquivo 'relatorio MAI.csv' não foi encontrado. Certifique-se de que ele está na mesma pasta que o script.")
         return None
-    except KeyError as e:
-        st.error(f"Erro de Chave (KeyError): A coluna {e} não foi encontrada no arquivo CSV. "
-                 f"Verifique se o nome da coluna está correto na seção 'MAPEAMENTO DE COLUNAS' do código.")
-        return None
-
 
 df = carregar_dados()
 
@@ -80,10 +86,10 @@ if df is None:
 # --- Barra Lateral (Filtros) ---
 st.sidebar.header("🔍 Filtros")
 
-clientes_disponiveis = sorted(df['Cliente_Padrao'].unique())
+clientes_disponiveis = sorted(df['cliente'].unique())
 clientes_selecionados = st.sidebar.multiselect("Cliente", clientes_disponiveis, default=clientes_disponiveis)
 
-agencias_disponiveis = sorted(df['Agencia_Padrao'].dropna().unique())
+agencias_disponiveis = sorted(df['agencia'].dropna().unique())
 agencias_selecionadas = st.sidebar.multiselect("Agência", agencias_disponiveis, default=agencias_disponiveis)
 
 # --- Filtragem do DataFrame ---
@@ -92,13 +98,12 @@ if not clientes_selecionados:
     df_filtrado = pd.DataFrame(columns=df.columns)
 else:
     df_filtrado = df[
-        (df['Cliente_Padrao'].isin(clientes_selecionados)) &
-        (df['Agencia_Padrao'].isin(agencias_selecionadas) | df['Agencia_Padrao'].isna())
+        (df['cliente'].isin(clientes_selecionados)) &
+        (df['agencia'].isin(agencias_selecionadas) | df['agencia'].isna())
     ]
 
-# Agrega os dados para as métricas e gráficos
-df_agregado = df_filtrado.groupby('Cliente_Padrao').agg(
-    Inserções=('Insercoes_Padrao', 'sum')
+df_agregado = df_filtrado.groupby('cliente').agg(
+    Inserções=('insercoes', 'sum')
 ).reset_index()
 
 # --- Conteúdo Principal ---
@@ -112,8 +117,8 @@ st.subheader("Métricas Gerais (com base nos filtros)")
 if not df_agregado.empty:
     media_insercoes = df_agregado['Inserções'].mean()
     total_insercoes = df_agregado['Inserções'].sum()
-    total_clientes = df_agregado['Cliente_Padrao'].nunique()
-    cliente_mais_frequente = df_agregado.loc[df_agregado['Inserções'].idxmax()]['Cliente_Padrao']
+    total_clientes = df_agregado['cliente'].nunique()
+    cliente_mais_frequente = df_agregado.loc[df_agregado['Inserções'].idxmax()]['cliente']
 else:
     media_insercoes, total_insercoes, total_clientes, cliente_mais_frequente = 0, 0, 0, "Nenhum"
 
@@ -135,9 +140,9 @@ with col_graf1:
     if not df_agregado.empty:
         top_clientes = df_agregado.nlargest(15, 'Inserções').sort_values(by='Inserções', ascending=True)
         grafico_clientes = px.bar(
-            top_clientes, x='Inserções', y='Cliente_Padrao', orientation='h',
+            top_clientes, x='Inserções', y='cliente', orientation='h',
             title="Top 15 Clientes por Nº de Inserções",
-            labels={'Inserções': 'Quantidade de Inserções', 'Cliente_Padrao': ''},
+            labels={'Inserções': 'Quantidade de Inserções', 'cliente': ''},
             text='Inserções'
         )
         grafico_clientes.update_layout(title_x=0.1, yaxis={'categoryorder':'total ascending'})
@@ -148,7 +153,7 @@ with col_graf1:
 with col_graf2:
     if not df_agregado.empty and df_agregado['Inserções'].sum() > 0:
         grafico_dist = px.pie(
-            df_agregado.nlargest(10, 'Inserções'), names='Cliente_Padrao', values='Inserções',
+            df_agregado.nlargest(10, 'Inserções'), names='cliente', values='Inserções',
             title='Proporção de Inserções (Top 10 Clientes)', hole=0.4
         )
         grafico_dist.update_traces(textinfo='percent+label', textposition='inside')
@@ -160,36 +165,32 @@ with col_graf2:
 # --- Tabela de Dados Detalhados com Novas Colunas ---
 st.markdown("---")
 
-try:
-    locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
-except locale.Error:
-    locale.setlocale(locale.LC_TIME, 'Portuguese_Brazil.1252')
-
+# Usa a nova função para obter o título dinâmico
 data_atual = datetime.now()
-nome_mes_atual = data_atual.strftime('%B').capitalize()
+nome_mes_atual = obter_nome_mes_pt(data_atual)
 ano_atual = data_atual.year
 st.subheader(f"Dados Detalhados de Contratos (Movimentação de {nome_mes_atual} de {ano_atual})")
 
 colunas_para_exibir = [
-    'Cliente_Padrao',
+    'cliente',
     'Entrou?',
     'Data de Entrada',
     'Saiu?',
     'Data de Saída',
-    'Data_Inicio_Padrao',
-    'Data_Fim_Padrao',
-    'Insercoes_Padrao',
-    'Codigo_Padrao',
-    'Agencia_Padrao'
+    'inicio_contrato',
+    'fim_contrato',
+    'insercoes',
+    'codigo',
+    'agencia'
 ]
 
 df_para_exibir = df_filtrado[colunas_para_exibir].rename(columns={
-    'Cliente_Padrao': 'Cliente',
-    'Data_Inicio_Padrao': 'Início do Contrato',
-    'Data_Fim_Padrao': 'Fim do Contrato',
-    'Insercoes_Padrao': 'Inserções',
-    'Codigo_Padrao': 'Código',
-    'Agencia_Padrao': 'Agência'
+    'cliente': 'Cliente',
+    'inicio_contrato': 'Início do Contrato',
+    'fim_contrato': 'Fim do Contrato',
+    'insercoes': 'Inserções',
+    'codigo': 'Código',
+    'agencia': 'Agência'
 })
 
 st.dataframe(
@@ -203,4 +204,3 @@ st.dataframe(
     hide_index=True,
     use_container_width=True
 )
-
