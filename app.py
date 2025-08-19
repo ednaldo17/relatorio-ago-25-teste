@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
-import numpy as np # Adicionado para usar a função np.where
+import numpy as np
 import plotly.express as px
 from datetime import datetime
+import locale # Importado para formatar o nome do mês
 
 # --- Configuração da Página ---
 st.set_page_config(
@@ -15,12 +16,22 @@ st.set_page_config(
 @st.cache_data
 def carregar_dados():
     try:
+        # Tenta carregar o CSV. Se o seu separador for ponto e vírgula, use: pd.read_csv("relatorio MAI.csv", sep=";")
         df = pd.read_csv("relatorio MAI.csv")
+
+        # --- AJUDA PARA DEBUG ---
+        # A linha abaixo vai imprimir o nome de todas as colunas do seu arquivo.
+        # Verifique a saída e garanta que os nomes usados no código abaixo
+        # (ex: 'Data_Inicio', 'Cliente') são IDÊNTICOS aos do seu arquivo.
+        st.info("Nomes das colunas encontradas no arquivo CSV:")
+        st.write(df.columns.tolist())
+
+        # --- VERIFIQUE OS NOMES DAS COLUNAS ABAIXO ---
+        # Certifique-se de que 'Data_Inicio' e 'Data_Fim' correspondem ao seu arquivo.
         df['Data_Inicio'] = pd.to_datetime(df['Data_Inicio'], errors='coerce')
         df['Data_Fim'] = pd.to_datetime(df['Data_Fim'], errors='coerce')
 
         # --- LÓGICA PARA AS NOVAS COLUNAS ---
-        # Identifica o mês e ano atuais para a verificação
         data_atual = datetime.now()
         mes_atual = data_atual.month
         ano_atual = data_atual.year
@@ -34,21 +45,24 @@ def carregar_dados():
         df['Saiu?'] = np.where(condicao_saiu, 'Sim', 'Não')
 
         # 3. Cria a coluna "Data de Entrada" (condicional)
-        # Preenche com a Data_Inicio se Entrou? for 'Sim', senão deixa vazio (NaT)
         df['Data de Entrada'] = np.where(df['Entrou?'] == 'Sim', df['Data_Inicio'], pd.NaT)
 
         # 4. Cria a coluna "Data de Saída" (condicional)
-        # Preenche com a Data_Fim se Saiu? for 'Sim', senão deixa vazio (NaT)
         df['Data de Saída'] = np.where(df['Saiu?'] == 'Sim', df['Data_Fim'], pd.NaT)
 
         return df
     except FileNotFoundError:
+        st.error("Erro: O arquivo 'relatorio MAI.csv' não foi encontrado. Certifique-se de que ele está na mesma pasta que o script.")
         return None
+    except KeyError as e:
+        st.error(f"Erro de Chave (KeyError): A coluna {e} não foi encontrada no arquivo CSV. "
+                 f"Por favor, verifique os nomes das colunas impressos acima e ajuste o código.")
+        return None
+
 
 df = carregar_dados()
 
 if df is None:
-    st.error("Erro: O arquivo 'relatorio MAI.csv' não foi encontrado. Certifique-se de que ele está na mesma pasta que o script.")
     st.stop()
 
 # --- Barra Lateral (Filtros) ---
@@ -63,12 +77,17 @@ agencias_disponiveis = sorted(df['Agência'].dropna().unique())
 agencias_selecionadas = st.sidebar.multiselect("Agência", agencias_disponiveis, default=agencias_disponiveis)
 
 # --- Filtragem do DataFrame ---
-df_filtrado = df[
-    (df['Cliente'].isin(clientes_selecionados)) &
-    (df['Agência'].isin(agencias_selecionadas) | df['Agência'].isna())
-]
+# Garante que a filtragem não quebre se as colunas não existirem
+df_filtrado = df.copy()
+if not clientes_selecionados:
+    df_filtrado = pd.DataFrame(columns=df.columns) # DataFrame vazio se nada for selecionado
+else:
+    df_filtrado = df[
+        (df['Cliente'].isin(clientes_selecionados)) &
+        (df['Agência'].isin(agencias_selecionadas) | df['Agência'].isna())
+    ]
 
-# Agrega os dados para as métricas e gráficos (soma as inserções por cliente)
+# Agrega os dados para as métricas e gráficos
 df_agregado = df_filtrado.groupby('Cliente').agg(
     Inserções=('Inserções', 'sum')
 ).reset_index()
@@ -131,7 +150,18 @@ with col_graf2:
 
 # --- Tabela de Dados Detalhados com Novas Colunas ---
 st.markdown("---")
-st.subheader(f"Dados Detalhados de Contratos (Movimentação de Agosto de 2025)")
+
+# Deixa o título da tabela dinâmico
+try:
+    locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+except locale.Error:
+    locale.setlocale(locale.LC_TIME, 'Portuguese_Brazil.1252') # Fallback para Windows
+
+data_atual = datetime.now()
+nome_mes_atual = data_atual.strftime('%B').capitalize()
+ano_atual = data_atual.year
+st.subheader(f"Dados Detalhados de Contratos (Movimentação de {nome_mes_atual} de {ano_atual})")
+
 
 # Define a ordem e quais colunas serão exibidas
 colunas_para_exibir = [
@@ -155,7 +185,6 @@ df_para_exibir = df_filtrado[colunas_para_exibir].rename(columns={
 
 st.dataframe(
     df_para_exibir,
-    # Formatação para as colunas de data
     column_config={
         "Data de Entrada": st.column_config.DateColumn("Data de Entrada", format="DD/MM/YYYY"),
         "Data de Saída": st.column_config.DateColumn("Data de Saída", format="DD/MM/YYYY"),
@@ -165,6 +194,3 @@ st.dataframe(
     hide_index=True,
     use_container_width=True
 )
-
-
-
