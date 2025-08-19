@@ -28,7 +28,7 @@ def carregar_dados():
 
         # --- VERIFIQUE OS NOMES DAS COLUNAS ABAIXO ---
         # Certifique-se de que 'Data_Inicio' e 'Data_Fim' correspondem ao seu arquivo.
-        df['Data_Inicio'] = pd.to_datetime(df['Data_Inicio'], errors='coerce')
+        df['Data_Início'] = pd.to_datetime(df['Data_Início'], errors='coerce')
         df['Data_Fim'] = pd.to_datetime(df['Data_Fim'], errors='coerce')
 
         # --- LÓGICA PARA AS NOVAS COLUNAS ---
@@ -194,3 +194,4 @@ st.dataframe(
     hide_index=True,
     use_container_width=True
 )
+
