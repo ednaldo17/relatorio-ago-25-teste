@@ -11,35 +11,29 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- Função para obter o nome do mês em português ---
-def obter_nome_mes_pt(data):
-    """Retorna o nome do mês de uma data em português."""
-    meses_pt = [
-        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-    ]
-    return meses_pt[data.month - 1]
-
 # --- Carregamento e Preparação dos Dados ---
 @st.cache_data
 def carregar_dados():
     try:
-        # Tenta carregar o CSV. Se o seu separador for ponto e vírgula, use: pd.read_csv("relatorio MAI.csv", sep=";")
-        df = pd.read_csv("relatorio MAI.csv")
+        # Carrega o novo arquivo CSV. Altere o separador se necessário (ex: sep=";")
+        df = pd.read_csv("relatorio AGO teste.csv")
 
         # --- AJUDA PARA DEBUG ---
-        st.info("Nomes das colunas encontradas no arquivo CSV (use para corrigir o mapa abaixo):")
-        st.write(df.columns.tolist())
+        # st.info("Nomes das colunas encontradas no arquivo CSV (use para corrigir o mapa abaixo):")
+        # st.write(df.columns.tolist())
 
         # --- MAPEAMENTO DE COLUNAS ---
-        # AJUSTE AQUI: Substitua os nomes à direita pelos nomes exatos do seu arquivo CSV.
+        # AJUSTE AQUI: Garanta que os nomes à direita correspondem aos do seu arquivo.
         mapa_colunas = {
-            "inicio_contrato": "Data_Início", # Ex: "Data Início" ou "Início"
-            "fim_contrato": "Data_Fim",       # Ex: "Data Final" ou "Fim"
+            "id": "ID",
+            "codigo": "Código",
             "cliente": "Cliente",
             "agencia": "Agência",
             "insercoes": "Inserções",
-            "codigo": "Código"
+            "entrou": "Entrou?",
+            "data_inicio": "Data_Início",
+            "saiu": "Saiu?",
+            "data_fim": "Data_Fim"
         }
 
         # --- VALIDAÇÃO DO MAPEAMENTO ---
@@ -48,34 +42,26 @@ def carregar_dados():
 
         if colunas_faltando:
             st.error(
-                f"Erro de Mapeamento: As seguintes colunas não foram encontradas no arquivo CSV: **{', '.join(colunas_faltando)}**. "
-                f"Por favor, corrija os nomes na seção 'MAPEAMENTO DE COLUNAS' para que correspondam exatamente aos nomes listados acima."
+                f"Erro de Mapeamento: As colunas **{', '.join(colunas_faltando)}** não foram encontradas. "
+                f"Corrija os nomes na seção 'MAPEAMENTO DE COLUNAS' do código."
             )
             return None
 
+        # Renomeia as colunas para um padrão interno e consistente
         mapa_rename_inverso = {v: k for k, v in mapa_colunas.items()}
         df = df.rename(columns=mapa_rename_inverso)
 
-        df['inicio_contrato'] = pd.to_datetime(df['inicio_contrato'], errors='coerce')
-        df['fim_contrato'] = pd.to_datetime(df['fim_contrato'], errors='coerce')
+        # Converte colunas de data, tratando possíveis erros
+        df['data_inicio'] = pd.to_datetime(df['data_inicio'], format='%d/%m/%Y', errors='coerce')
+        df['data_fim'] = pd.to_datetime(df['data_fim'], format='%d/%m/%Y', errors='coerce')
 
-        # --- LÓGICA PARA AS NOVAS COLUNAS ---
-        data_atual = datetime.now()
-        mes_atual = data_atual.month
-        ano_atual = data_atual.year
-
-        condicao_entrou = (df['inicio_contrato'].dt.month == mes_atual) & (df['inicio_contrato'].dt.year == ano_atual)
-        df['Entrou?'] = np.where(condicao_entrou, 'Sim', 'Não')
-
-        condicao_saiu = (df['fim_contrato'].dt.month == mes_atual) & (df['fim_contrato'].dt.year == ano_atual)
-        df['Saiu?'] = np.where(condicao_saiu, 'Sim', 'Não')
-
-        df['Data de Entrada'] = np.where(df['Entrou?'] == 'Sim', df['inicio_contrato'], pd.NaT)
-        df['Data de Saída'] = np.where(df['Saiu?'] == 'Sim', df['fim_contrato'], pd.NaT)
+        # Garante que os valores 'Sim'/'Não' sejam consistentes (remove espaços, etc.)
+        df['entrou'] = df['entrou'].str.strip().str.capitalize()
+        df['saiu'] = df['saiu'].str.strip().str.capitalize()
 
         return df
     except FileNotFoundError:
-        st.error("Erro: O arquivo 'relatorio MAI.csv' não foi encontrado. Certifique-se de que ele está na mesma pasta que o script.")
+        st.error("Erro: O arquivo 'relatorio AGO teste.csv' não foi encontrado. Certifique-se de que ele está na mesma pasta que o script.")
         return None
 
 df = carregar_dados()
@@ -93,24 +79,20 @@ agencias_disponiveis = sorted(df['agencia'].dropna().unique())
 agencias_selecionadas = st.sidebar.multiselect("Agência", agencias_disponiveis, default=agencias_disponiveis)
 
 # --- Filtragem do DataFrame ---
-df_filtrado = df.copy()
-if not clientes_selecionados:
-    df_filtrado = pd.DataFrame(columns=df.columns)
-else:
-    df_filtrado = df[
-        (df['cliente'].isin(clientes_selecionados)) &
-        (df['agencia'].isin(agencias_selecionadas) | df['agencia'].isna())
-    ]
-
-df_agregado = df_filtrado.groupby('cliente').agg(
-    Inserções=('insercoes', 'sum')
-).reset_index()
+df_filtrado = df[
+    (df['cliente'].isin(clientes_selecionados)) &
+    (df['agencia'].isin(agencias_selecionadas) | df['agencia'].isna())
+]
 
 # --- Conteúdo Principal ---
 st.title("📊 Dashboard de Análise de Inserções")
 st.markdown("Explore os dados de inserções de comerciais. Utilize os filtros à esquerda para refinar sua análise.")
 
-# --- Métricas Principais (KPIs) ---
+# --- Métricas e Gráficos (Agregados) ---
+df_agregado = df_filtrado.groupby('cliente').agg(
+    Inserções=('insercoes', 'sum')
+).reset_index()
+
 st.markdown("---")
 st.subheader("Métricas Gerais (com base nos filtros)")
 
@@ -131,9 +113,55 @@ col2.metric("Total de Inserções", formatar_numero(total_insercoes))
 col3.metric("Total de Clientes", formatar_numero(total_clientes))
 col4.metric("Cliente Destaque", cliente_mais_frequente)
 
-# --- Análises Visuais com Plotly ---
-st.subheader("Gráficos")
+# --- Tabela Geral de Comerciais ---
+st.markdown("---")
+st.subheader("Lista Geral de Comerciais Ativos")
 
+# Colunas para exibir na tabela principal
+colunas_tabela_geral = ['id', 'codigo', 'cliente', 'agencia', 'insercoes']
+df_tabela_geral = df_filtrado[colunas_tabela_geral].rename(columns={
+    'id': 'ID',
+    'codigo': 'Código',
+    'cliente': 'Cliente',
+    'agencia': 'Agência',
+    'insercoes': 'Inserções'
+})
+
+st.dataframe(df_tabela_geral, hide_index=True, use_container_width=True)
+
+
+# --- Listas de Movimentação (Entradas e Saídas) ---
+st.markdown("---")
+st.subheader("Movimentações do Mês")
+
+col_entrou, col_saiu = st.columns(2)
+
+# Filtra os clientes que entraram
+df_entrou = df_filtrado[df_filtrado['entrou'] == 'Sim']
+# Filtra os clientes que saíram
+df_saiu = df_filtrado[df_filtrado['saiu'] == 'Sim']
+
+with col_entrou:
+    st.markdown("#### ✅ Clientes que Entraram")
+    if df_entrou.empty:
+        st.info("Nenhum cliente entrou este mês.")
+    else:
+        for index, row in df_entrou.iterrows():
+            data_formatada = row['data_inicio'].strftime('%d/%m/%Y') if pd.notna(row['data_inicio']) else 'Data não informada'
+            st.markdown(f"- **{row['cliente']}** (Início: {data_formatada})")
+
+with col_saiu:
+    st.markdown("#### ❌ Clientes que Saíram")
+    if df_saiu.empty:
+        st.info("Nenhum cliente saiu este mês.")
+    else:
+        for index, row in df_saiu.iterrows():
+            data_formatada = row['data_fim'].strftime('%d/%m/%Y') if pd.notna(row['data_fim']) else 'Data não informada'
+            st.markdown(f"- **{row['cliente']}** (Fim: {data_formatada})")
+
+# --- Gráficos ---
+st.markdown("---")
+st.subheader("Análise Visual")
 col_graf1, col_graf2 = st.columns(2)
 
 with col_graf1:
@@ -161,46 +189,3 @@ with col_graf2:
         st.plotly_chart(grafico_dist, use_container_width=True)
     else:
         st.warning("Nenhum dado para exibir no gráfico de proporção.")
-
-# --- Tabela de Dados Detalhados com Novas Colunas ---
-st.markdown("---")
-
-# Usa a nova função para obter o título dinâmico
-data_atual = datetime.now()
-nome_mes_atual = obter_nome_mes_pt(data_atual)
-ano_atual = data_atual.year
-st.subheader(f"Dados Detalhados de Contratos (Movimentação de {nome_mes_atual} de {ano_atual})")
-
-colunas_para_exibir = [
-    'cliente',
-    'Entrou?',
-    'Data de Entrada',
-    'Saiu?',
-    'Data de Saída',
-    'inicio_contrato',
-    'fim_contrato',
-    'insercoes',
-    'codigo',
-    'agencia'
-]
-
-df_para_exibir = df_filtrado[colunas_para_exibir].rename(columns={
-    'cliente': 'Cliente',
-    'inicio_contrato': 'Início do Contrato',
-    'fim_contrato': 'Fim do Contrato',
-    'insercoes': 'Inserções',
-    'codigo': 'Código',
-    'agencia': 'Agência'
-})
-
-st.dataframe(
-    df_para_exibir,
-    column_config={
-        "Data de Entrada": st.column_config.DateColumn("Data de Entrada", format="DD/MM/YYYY"),
-        "Data de Saída": st.column_config.DateColumn("Data de Saída", format="DD/MM/YYYY"),
-        "Início do Contrato": st.column_config.DateColumn("Início do Contrato", format="DD/MM/YYYY"),
-        "Fim do Contrato": st.column_config.DateColumn("Fim do Contrato", format="DD/MM/YYYY"),
-    },
-    hide_index=True,
-    use_container_width=True
-)
