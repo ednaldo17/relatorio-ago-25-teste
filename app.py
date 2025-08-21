@@ -117,27 +117,25 @@ df_agregado = df_filtrado.groupby('cliente').agg(
 ).reset_index()
 
 if not df_agregado.empty:
-    media_insercoes = df_agregado['Inserções'].mean()
     total_insercoes = df_agregado['Inserções'].sum()
     total_clientes = df_agregado['cliente'].nunique()
     cliente_mais_frequente = df_agregado.loc[df_agregado['Inserções'].idxmax()]['cliente']
-    media_diaria = media_insercoes // 30
+    media_diaria = df_agregado['Inserções'].mean() // 30
 else:
-    media_insercoes, total_insercoes, total_clientes, cliente_mais_frequente, media_diaria = 0, 0, 0, "Nenhum", 0
+    total_insercoes, total_clientes, cliente_mais_frequente, media_diaria = 0, 0, "Nenhum", 0
 
 def formatar_numero(num):
     return f"{num:,.0f}".replace(',', '.')
 
 # Primeira linha (2 colunas)
 col1, col2 = st.columns(2)
-col1.metric("📡 Média por Cliente", formatar_numero(media_insercoes))
+col1.metric("⭐ Cliente Destaque", cliente_mais_frequente)
 col2.metric("🎶 Total de Inserções", formatar_numero(total_insercoes))
 
-# Segunda linha (3 colunas)
-col3, col4, col5 = st.columns(3)
+# Segunda linha (2 colunas)
+col3, col4 = st.columns(2)
 col3.metric("👥 Total de Clientes", formatar_numero(total_clientes))
-col4.metric("⭐ Cliente Destaque", cliente_mais_frequente)
-col5.metric("📅 Média Diária", int(media_diaria))
+col4.metric("📅 Média Diária", int(media_diaria))
 
 # --- Movimentações ---
 st.markdown("---")
@@ -191,6 +189,7 @@ if not df_agregado.empty:
     grafico_dist.update_traces(textinfo='percent+label', textposition='inside')
     grafico_dist.update_layout(showlegend=False, title_x=0.15)
     col_graf2.plotly_chart(grafico_dist, use_container_width=True)
+
 
 
 
