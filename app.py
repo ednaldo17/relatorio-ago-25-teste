@@ -133,7 +133,7 @@ col1.metric("📡 Média por Cliente", formatar_numero(media_insercoes))
 col2.metric("🎶 Total de Inserções", formatar_numero(total_insercoes))
 col3.metric("👥 Total de Clientes", formatar_numero(total_clientes))
 col4.metric("⭐ Cliente Destaque", cliente_mais_frequente)
-col5.metric("📅 Média Diária", {media_diaria})
+col5.metric("📅 Média Diária", media_diaria)
 
 # --- Movimentações ---
 st.markdown("---")
@@ -187,6 +187,7 @@ if not df_agregado.empty:
     grafico_dist.update_traces(textinfo='percent+label', textposition='inside')
     grafico_dist.update_layout(showlegend=False, title_x=0.15)
     col_graf2.plotly_chart(grafico_dist, use_container_width=True)
+
 
 
 
