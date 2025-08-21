@@ -111,7 +111,7 @@ df_filtrado = df[
 # --- Painel de Controle das Inserções (Métricas) ---
 st.subheader("📊 Painel de Controle das Inserções")
 
-# Agregado por cliente para as métricas já existentes
+# Agregado por cliente
 df_agregado = df_filtrado.groupby('cliente').agg(
     Inserções=('insercoes', 'sum')
 ).reset_index()
@@ -121,35 +121,19 @@ if not df_agregado.empty:
     total_insercoes = df_agregado['Inserções'].sum()
     total_clientes = df_agregado['cliente'].nunique()
     cliente_mais_frequente = df_agregado.loc[df_agregado['Inserções'].idxmax()]['cliente']
+    media_diaria = media_insercoes / 30  # <<< NOVO: média diária simples
 else:
-    media_insercoes, total_insercoes, total_clientes, cliente_mais_frequente = 0, 0, 0, "Nenhum"
-
-# >>> NOVO: média diária (total) considerando os períodos
-df_tmp = df_filtrado.copy()
-
-# Considera apenas linhas com data de início válida
-df_tmp = df_tmp[pd.notna(df_tmp['data_inicio'])].copy()
-
-# Se não houver data_fim, usa a data de hoje; inclui o próprio dia (+1)
-hoje = pd.Timestamp.today().normalize()
-df_tmp['data_fim_calc'] = df_tmp['data_fim'].fillna(hoje)
-df_tmp['dias'] = (df_tmp['data_fim_calc'] - df_tmp['data_inicio']).dt.days + 1
-df_tmp['dias'] = df_tmp['dias'].clip(lower=1)
-
-soma_insercoes = df_tmp['insercoes'].sum()
-soma_dias = df_tmp['dias'].sum()
-media_diaria_total = (soma_insercoes / soma_dias) if soma_dias > 0 else 0
+    media_insercoes, total_insercoes, total_clientes, cliente_mais_frequente, media_diaria = 0, 0, 0, "Nenhum", 0
 
 def formatar_numero(num):
     return f"{num:,.0f}".replace(',', '.')
 
-# Agora exibimos 5 cards (o 5º é a média diária)
 col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("📡 Média Mensal por Cliente", formatar_numero(media_insercoes))
+col1.metric("📡 Média por Cliente", formatar_numero(media_insercoes))
 col2.metric("🎶 Total de Inserções", formatar_numero(total_insercoes))
 col3.metric("👥 Total de Clientes", formatar_numero(total_clientes))
 col4.metric("⭐ Cliente Destaque", cliente_mais_frequente)
-col5.metric("📅 Média Diária (total)", f"{media_diaria_total:.2f}")
+col5.metric("📅 Média Diária", f"{media_diaria:.2f}")
 
 # --- Movimentações ---
 st.markdown("---")
@@ -203,6 +187,7 @@ if not df_agregado.empty:
     grafico_dist.update_traces(textinfo='percent+label', textposition='inside')
     grafico_dist.update_layout(showlegend=False, title_x=0.15)
     col_graf2.plotly_chart(grafico_dist, use_container_width=True)
+
 
 
 
