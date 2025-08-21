@@ -128,9 +128,13 @@ else:
 def formatar_numero(num):
     return f"{num:,.0f}".replace(',', '.')
 
-col1, col2, col3, col4, col5 = st.columns(5)
+# Primeira linha (2 colunas)
+col1, col2 = st.columns(2)
 col1.metric("📡 Média por Cliente", formatar_numero(media_insercoes))
 col2.metric("🎶 Total de Inserções", formatar_numero(total_insercoes))
+
+# Segunda linha (3 colunas)
+col3, col4, col5 = st.columns(3)
 col3.metric("👥 Total de Clientes", formatar_numero(total_clientes))
 col4.metric("⭐ Cliente Destaque", cliente_mais_frequente)
 col5.metric("📅 Média Diária", int(media_diaria))
@@ -187,6 +191,7 @@ if not df_agregado.empty:
     grafico_dist.update_traces(textinfo='percent+label', textposition='inside')
     grafico_dist.update_layout(showlegend=False, title_x=0.15)
     col_graf2.plotly_chart(grafico_dist, use_container_width=True)
+
 
 
 
