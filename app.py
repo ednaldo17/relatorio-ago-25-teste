@@ -50,7 +50,6 @@ st.markdown(
     <div style='text-align: center; padding: 15px; 
                 background: #111; border-radius: 15px; 
                 margin-bottom: 25px;'>
-        <img src="LOGO_BITURY-1.jpg" width="200">
         <h1>📻 Dashboard Rádio Bitury FM 98.3</h1>
         <p style='color: #C55A2B; font-size:18px;'>Monitoramento de campanhas e clientes no ar</p>
     </div>
@@ -191,3 +190,4 @@ if not df_agregado.empty:
     grafico_dist.update_traces(textinfo='percent+label', textposition='inside')
     grafico_dist.update_layout(showlegend=False, title_x=0.15)
     col_graf2.plotly_chart(grafico_dist, use_container_width=True)
+
