@@ -97,7 +97,7 @@ if df is None:
     st.stop()
 
 # --- Filtros ---
-st.sidebar.header("🔍 Filtros de Transmissão")
+st.sidebar.header("🔍 Filtros")
 clientes_disponiveis = sorted(df['cliente'].unique())
 clientes_selecionados = st.sidebar.multiselect("🎤 Cliente", clientes_disponiveis, default=clientes_disponiveis)
 agencias_disponiveis = sorted(df['agencia'].dropna().unique())
@@ -190,4 +190,5 @@ if not df_agregado.empty:
     grafico_dist.update_traces(textinfo='percent+label', textposition='inside')
     grafico_dist.update_layout(showlegend=False, title_x=0.15)
     col_graf2.plotly_chart(grafico_dist, use_container_width=True)
+
 
