@@ -108,9 +108,13 @@ df_filtrado = df[
     (df['agencia'].isin(agencias_selecionadas) | df['agencia'].isna())
 ]
 
-# --- Métricas ---
+# --- Painel de Controle das Inserções (Métricas) ---
 st.subheader("📊 Painel de Controle das Inserções")
-df_agregado = df_filtrado.groupby('cliente').agg(Inserções=('insercoes', 'sum')).reset_index()
+
+# Agregado por cliente para as métricas já existentes
+df_agregado = df_filtrado.groupby('cliente').agg(
+    Inserções=('insercoes', 'sum')
+).reset_index()
 
 if not df_agregado.empty:
     media_insercoes = df_agregado['Inserções'].mean()
@@ -120,67 +124,32 @@ if not df_agregado.empty:
 else:
     media_insercoes, total_insercoes, total_clientes, cliente_mais_frequente = 0, 0, 0, "Nenhum"
 
-def formatar_numero(num): return f"{num:,.0f}".replace(',', '.')
+# >>> NOVO: média diária (total) considerando os períodos
+df_tmp = df_filtrado.copy()
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("📡 Média por Cliente", formatar_numero(media_insercoes))
+# Considera apenas linhas com data de início válida
+df_tmp = df_tmp[pd.notna(df_tmp['data_inicio'])].copy()
+
+# Se não houver data_fim, usa a data de hoje; inclui o próprio dia (+1)
+hoje = pd.Timestamp.today().normalize()
+df_tmp['data_fim_calc'] = df_tmp['data_fim'].fillna(hoje)
+df_tmp['dias'] = (df_tmp['data_fim_calc'] - df_tmp['data_inicio']).dt.days + 1
+df_tmp['dias'] = df_tmp['dias'].clip(lower=1)
+
+soma_insercoes = df_tmp['insercoes'].sum()
+soma_dias = df_tmp['dias'].sum()
+media_diaria_total = (soma_insercoes / soma_dias) if soma_dias > 0 else 0
+
+def formatar_numero(num):
+    return f"{num:,.0f}".replace(',', '.')
+
+# Agora exibimos 5 cards (o 5º é a média diária)
+col1, col2, col3, col4, col5 = st.columns(5)
+col1.metric("📡 Média Mensal por Cliente", formatar_numero(media_insercoes))
 col2.metric("🎶 Total de Inserções", formatar_numero(total_insercoes))
 col3.metric("👥 Total de Clientes", formatar_numero(total_clientes))
 col4.metric("⭐ Cliente Destaque", cliente_mais_frequente)
-
-# --- Tabela de Médias (Mensal e Diária) ---
-st.markdown("---")
-st.subheader("📅 Média de Inserções por Cliente (Diária e Mensal)")
-
-df_medias = df_filtrado.copy()
-
-# Garante datas válidas
-df_medias['data_inicio'] = pd.to_datetime(df_medias['data_inicio'], errors='coerce')
-df_medias['data_fim'] = pd.to_datetime(df_medias['data_fim'], errors='coerce')
-
-# Define a data final como hoje, caso esteja vazia
-df_medias['data_fim'] = df_medias['data_fim'].fillna(pd.Timestamp.today())
-
-# Calcula duração em dias
-df_medias['dias'] = (df_medias['data_fim'] - df_medias['data_inicio']).dt.days
-df_medias['dias'] = df_medias['dias'].clip(lower=1)  # evita divisão por zero
-
-# Médias
-df_medias['Média Diária'] = df_medias['insercoes'] / df_medias['dias']
-df_medias['Média Mensal'] = df_medias['insercoes'] / (df_medias['dias'] / 30)
-
-# Agregar por cliente
-df_medias_agg = df_medias.groupby('cliente').agg(
-    Inserções_Totais=('insercoes', 'sum'),
-    Média_Diária=('Média Diária', 'mean'),
-    Média_Mensal=('Média Mensal', 'mean')
-).reset_index()
-
-# Formatação
-df_medias_agg['Média_Diária'] = df_medias_agg['Média_Diária'].round(2)
-df_medias_agg['Média_Mensal'] = df_medias_agg['Média_Mensal'].round(2)
-
-# Exibir
-st.dataframe(
-    df_medias_agg.rename(columns={
-        'cliente': 'Cliente',
-        'Inserções_Totais': 'Inserções Totais',
-        'Média_Diária': 'Média Diária',
-        'Média_Mensal': 'Média Mensal'
-    }),
-    hide_index=True,
-    use_container_width=True
-)
-
-# --- Tabela ---
-st.markdown("---")
-st.subheader("🎧 Comerciais no Ar")
-st.dataframe(
-    df_filtrado[['id', 'codigo', 'cliente', 'agencia', 'insercoes']].rename(columns={
-        'id': 'ID', 'codigo': 'Código', 'cliente': 'Cliente', 'agencia': 'Agência', 'insercoes': 'Inserções'
-    }),
-    hide_index=True, use_container_width=True
-)
+col5.metric("📅 Média Diária (total)", f"{media_diaria_total:.2f}")
 
 # --- Movimentações ---
 st.markdown("---")
@@ -234,6 +203,7 @@ if not df_agregado.empty:
     grafico_dist.update_traces(textinfo='percent+label', textposition='inside')
     grafico_dist.update_layout(showlegend=False, title_x=0.15)
     col_graf2.plotly_chart(grafico_dist, use_container_width=True)
+
 
 
 
